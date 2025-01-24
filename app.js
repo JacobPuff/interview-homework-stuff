@@ -82,6 +82,19 @@ var intersection = {
     },
 }
 
+const TRAFFIC_TYPE = {
+    "RANDOM": 0,
+    "HEAVY_EW": 1,
+    "EVEN": 2,
+}
+var worldStateAndControls = {
+    useDynamic: false, // false = time based
+    useHistoricalData: false,
+    trafficCondition: TRAFFIC_TYPE.RANDOM,
+    lastCarSpawn: new Date(), // may cause a short delay before cars spawn, but thats ok.
+    carSpawnRate: 5 // Used to adjust global spawn rate independent of traffic coniditions. I dunno how sensitive this will be yet, but 5 it shall be. I'm thinking like, 1-10 scale.
+}
+
 drawIntersectionSide = function(cardinal_dir) {
     let rotation = 0;
     offsetX = 0;
@@ -150,12 +163,25 @@ drawLights = function () {
      * Sure, this will lead to some boilerplate, but I'm not writing a 2D game engine with Z indexing right now.
      * 
      * I could probably simplify how many funcs we have, but, meh, we'll get there later.
-     * Like, the rotation and position can end up as constants later.
+     * Like, the rotation and position can end up as constants later. For now though, this makes it easier to programatically draw stuff.
      **/
     drawLightsSide("N")
     drawLightsSide("S")
     drawLightsSide("E")
     drawLightsSide("W")
+}
+
+trafficControl = function() {
+    /**
+     * This is our main traffic controller func!
+     * For now, both the time based and dynamic versions will live here, until I figure out where I want to separate them.
+     */
+}
+
+spawnCars = function() {
+    /**
+     * Yeh
+     */
 }
 
 var FPS = 60; 
@@ -168,6 +194,8 @@ dostuff = function() {
         drawIntersection()
         drawCars()
         drawLights()
+        spawnCars()
+        trafficControl()
     }, 1000/FPS);
 };
 
