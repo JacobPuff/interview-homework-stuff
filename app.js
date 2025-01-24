@@ -24,19 +24,19 @@ var lights = {
         {dir: TURN.RIGHT, state: COLOR.RED, last_state_change: new Date()},
     ],
     "S": [
-        {dir: TURN.LEFT, state: COLOR.RED, last_state_change: new Date()},
-        {dir: TURN.STRAIGHT, state: COLOR.RED, last_state_change: new Date()},
-        {dir: TURN.RIGHT, state: COLOR.RED, last_state_change: new Date()},
+        {dir: TURN.LEFT, state: COLOR.GRE, last_state_change: new Date()},
+        {dir: TURN.STRAIGHT, state: COLOR.GRE, last_state_change: new Date()},
+        {dir: TURN.RIGHT, state: COLOR.GRE, last_state_change: new Date()},
     ],
     "E": [
-        {dir: TURN.LEFT, state: COLOR.RED, last_state_change: new Date()},
-        {dir: TURN.STRAIGHT, state: COLOR.RED, last_state_change: new Date()},
-        {dir: TURN.RIGHT, state: COLOR.RED, last_state_change: new Date()},
+        {dir: TURN.LEFT, state: COLOR.YEL, last_state_change: new Date()},
+        {dir: TURN.STRAIGHT, state: COLOR.YEL, last_state_change: new Date()},
+        {dir: TURN.RIGHT, state: COLOR.YEL, last_state_change: new Date()},
     ],
     "W": [
-        {dir: TURN.LEFT, state: COLOR.RED, last_state_change: new Date()},
-        {dir: TURN.STRAIGHT, state: COLOR.RED, last_state_change: new Date()},
-        {dir: TURN.RIGHT, state: COLOR.RED, last_state_change: new Date()},
+        {dir: TURN.LEFT, state: COLOR.FLA, last_state_change: new Date()},
+        {dir: TURN.STRAIGHT, state: COLOR.FLA, last_state_change: new Date()},
+        {dir: TURN.RIGHT, state: COLOR.FLA, last_state_change: new Date()},
     ],
 }
 
@@ -133,7 +133,8 @@ drawCars = function () {
 
 
 drawLightsSide = function(cardinal_dir) {
-    let rotation = 0;
+    
+    rotation = 0;
     offsetX = 0;
     offsetY = 0;
     // This will make the general drawing process a lot easier by letting me slide stuff around.
@@ -142,19 +143,59 @@ drawLightsSide = function(cardinal_dir) {
             rotation = 0
             offsetX = 0;
             offsetY = 0;
+            break;
         case "W":
             rotation = 90
             offsetX = 0;
             offsetY = 0;
+            break;
         case "S":
             rotation = 180
             offsetX = 0;
             offsetY = 0;
+            break;
         case "E":
             rotation = 270
             offsetX = 0;
             offsetY = 0;
+            break;
     }
+    lights[cardinal_dir].forEach((l, idx) => {
+        text = "⬤"
+        if (l.dir == TURN.LEFT) {
+            text = "◄"
+        }
+        if (l.dir == TURN.RIGHT) {
+            text = "►"
+        }
+        
+        style = "#fff"
+        switch(l.state) {
+            case COLOR.RED:
+                style = "red"
+                break;
+            case COLOR.YEL:
+                style = "yellow"
+                break;
+            case COLOR.GRE:
+                style = "#00FF00"
+                break;
+            case COLOR.FLA:
+                style = "orange"
+                break;
+        }
+        ctx.fillStyle = style
+        ctx.font = '20px serif'
+
+        spacing = 100;
+        x =  (spacing * (idx-1)+offsetX)
+        y = -250 + offsetY
+        ctx.save()
+        ctx.translate(WIDTH/2, HEIGHT/2)
+        ctx.rotate(rotation * Math.PI /180)
+        ctx.fillText(text, x, y)
+        ctx.restore()
+    })
 }
 
 drawLights = function () {
@@ -196,6 +237,10 @@ dostuff = function() {
         drawLights()
         spawnCars()
         trafficControl()
+        if (new Date() - lights["N"][0].last_state_change > 1000) {
+            lights["N"][0].state = (lights["N"][0].state + 1) % 4
+            lights["N"][0].last_state_change = new Date()
+        } 
     }, 1000/FPS);
 };
 
