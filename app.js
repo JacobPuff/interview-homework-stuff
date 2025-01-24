@@ -150,7 +150,7 @@ drawIntersectionSide = function(cardinal_dir) {
         ctx.rotate(rotation * Math.PI /180)
         ctx.translate(x+carCountOffsetX, y+carCountOffsetY)
         ctx.rotate(-rotation * Math.PI /180)
-        ctx.fillText(l.car_count + idx, 0, 0)
+        ctx.fillText(l.car_count, 0, 0)
         ctx.restore()
     })
 }
