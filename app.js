@@ -3,6 +3,7 @@ var ctx = c.getContext("2d");
 
 const WIDTH = 1000;
 const HEIGHT = 1000;
+const LANE_WIDTH = 80;
 
 // These getting used as code tokens means there will be no spelling errors. N S E W are probably fine tho.
 const TURN = {
@@ -97,28 +98,61 @@ var worldStateAndControls = {
 
 drawIntersectionSide = function(cardinal_dir) {
     let rotation = 0;
-    offsetX = 0;
-    offsetY = 0;
+    spacing = 100;
+    offsetX = -100;
+    offsetY = 300;
+    carCountOffsetX = 20 // half font size
+    carCountOffsetY = 100
     // This will make the general drawing process a lot easier by letting me slide stuff around.
     switch(cardinal_dir) {
         case "N":
             rotation = 0
-            offsetX = 0;
-            offsetY = 0;
+            carCountOffsetX = 0
+            break;
         case "W":
             rotation = 90
-            offsetX = 0;
-            offsetY = 0;
+            break;
         case "S":
             rotation = 180
-            offsetX = 0;
-            offsetY = 0;
+            break;
         case "E":
             rotation = 270
-            offsetX = 0;
-            offsetY = 0;
+            carCountOffsetX = 0
+            break;
     }
-    // Use 
+    // Use
+    intersection[cardinal_dir].lanes.forEach((l, idx) => {
+        text = "↑"
+        if (l.dir == TURN.LEFT) {
+            text = "↰"
+        }
+        if (l.dir == TURN.RIGHT) {
+            text = "↱"
+        }
+        
+        style = "#fff"
+        ctx.fillStyle = style
+        ctx.font = '40px serif'
+
+        x = spacing * (idx-1)+offsetX
+        y = offsetY
+
+        // fill turn lane symbol
+        ctx.save()
+        ctx.translate(WIDTH/2, HEIGHT/2)
+        ctx.rotate(rotation * Math.PI /180)
+        ctx.fillText(text, x, y)
+        ctx.restore()
+        
+        // fill car count
+        ctx.save()
+        ctx.translate(WIDTH/2, HEIGHT/2)
+        ctx.rotate(rotation * Math.PI /180)
+        ctx.translate(x+carCountOffsetX, y+carCountOffsetY)
+        ctx.rotate(-rotation * Math.PI /180)
+        ctx.fillText(l.car_count + idx, 0, 0)
+        ctx.restore()
+    })
 }
 drawIntersection = function() {
     drawIntersectionSide("N")
@@ -135,29 +169,22 @@ drawCars = function () {
 drawLightsSide = function(cardinal_dir) {
     
     rotation = 0;
+    spacing = 100;
     offsetX = 0;
-    offsetY = 0;
+    offsetY = -150;
     // This will make the general drawing process a lot easier by letting me slide stuff around.
     switch(cardinal_dir) {
         case "N":
             rotation = 0
-            offsetX = 0;
-            offsetY = 0;
             break;
         case "W":
             rotation = 90
-            offsetX = 0;
-            offsetY = 0;
             break;
         case "S":
             rotation = 180
-            offsetX = 0;
-            offsetY = 0;
             break;
         case "E":
             rotation = 270
-            offsetX = 0;
-            offsetY = 0;
             break;
     }
     lights[cardinal_dir].forEach((l, idx) => {
@@ -187,9 +214,8 @@ drawLightsSide = function(cardinal_dir) {
         ctx.fillStyle = style
         ctx.font = '20px serif'
 
-        spacing = 100;
-        x =  (spacing * (idx-1)+offsetX)
-        y = -250 + offsetY
+        x =  spacing * (idx-1)+offsetX
+        y = offsetY
         ctx.save()
         ctx.translate(WIDTH/2, HEIGHT/2)
         ctx.rotate(rotation * Math.PI /180)
