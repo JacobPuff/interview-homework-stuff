@@ -566,8 +566,6 @@ handleTrafficActionQueue = function() {
     now = new Date()
     if (action != worldStateAndControls.lastTrafficControlAction){
         worldStateAndControls.timeLatestActionTaken = now
-        console.log("ACTION", action)
-
     }
     worldStateAndControls.lastTrafficControlAction = action
     secondsSinceAction = (now.getTime() - worldStateAndControls.timeLatestActionTaken.getTime())/1000
