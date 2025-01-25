@@ -114,6 +114,14 @@ var worldStateAndControls = {
     lastCarSpawnLane: 0,
     lastTrafficControlAction: null,
     trafficControlQueue: [],
+    timeLatestActionTaken: new Date(),
+
+    
+    /**
+     * I am adding variables as knobs we can turn, but they may be changed or removed later.
+     */
+    maxWaitSeconds: 5, // Our cars are just numbers right now, so this seems reasonable.
+    minSecondsPerTrafficChange: 5,
 }
 
 // This is a convenience that might get used a couple times, but I may want to update the intersection data structure to make this less annoying
@@ -308,20 +316,20 @@ lightToRedSmooth = function(card, lightId) {
 
 stopSides = function(cardinals) {
     if (!cardinals || !cardinals.length) return true
-    let done = false
+    let done = []
     for (const card of cardinals) {
-        lightToRedSmooth(card, 0)
-        lightToRedSmooth(card, 1)
-        done = lightToRedSmooth(card, 2)
+        done.push(lightToRedSmooth(card, 0))
+        done.push(lightToRedSmooth(card, 1))
+        done.push(lightToRedSmooth(card, 2))
     }
-    return done
+    return done.every(v => v == true)
 }
 
 switchForward = function(isNS) {
     let done = false
     if (isNS) {
         let stopped = [stopSides(["E", "W"]), lightToRedSmooth("N", 0), lightToRedSmooth("S", 0)]
-        if (stopped.every(Boolean)) {
+        if (stopped.every(v => v == true)) {
             lightToColor("N", 1, COLOR.GRE)
             lightToColor("N", 2, COLOR.GRE)
             lightToColor("S", 1, COLOR.GRE)
@@ -331,7 +339,7 @@ switchForward = function(isNS) {
         return done
     }
     let stopped = [stopSides(["N", "S"]), lightToRedSmooth("E", 0), lightToRedSmooth("W", 0)]
-    if (stopped.every(Boolean)) {
+    if (stopped.every(v => v == true)) {
         lightToColor("E", 1, COLOR.GRE)
         lightToColor("E", 2, COLOR.GRE)
         lightToColor("W", 1, COLOR.GRE)
@@ -352,7 +360,7 @@ switchLeftTurns = function (isNS, useFlash = false) {
             lightToRedSmooth("S", 1),
             lightToRedSmooth("S", 2),
         ]
-        if (stopped.every(Boolean)) {
+        if (stopped.every(v => v == true)) {
             lightToColor("N", 0, useFlash ? COLOR.FLA : COLOR.GRE)
             lightToColor("S", 0, useFlash ? COLOR.FLA :COLOR.GRE)
             done = true
@@ -366,7 +374,7 @@ switchLeftTurns = function (isNS, useFlash = false) {
         lightToRedSmooth("W", 1),
         lightToRedSmooth("W", 2),
     ]
-    if (stopped.every(Boolean)) {
+    if (stopped.every(v => v == true)) {
         lightToColor("E", 0, useFlash ? COLOR.FLA :COLOR.GRE)
         lightToColor("W", 0, useFlash ? COLOR.FLA :COLOR.GRE)
         done = true
@@ -404,11 +412,6 @@ trafficControl = function() {
      * This is our main traffic controller func!
      * For now, both the time based and dynamic versions will live here, until I figure out where I want to separate them.
      */
-    /**
-     * I am adding variables as knobs we can turn, but they may be changed or removed later.
-     */
-    maxWaitSeconds = 5 // Our cars are just numbers right now, so this seems reasonable.
-    minSecondsPerTrafficChange = 3
     if (worldStateAndControls.useDynamic) {
 
         if (worldStateAndControls.trafficCondition == TRAFFIC_TYPE.HEAVY_EW) {
@@ -418,7 +421,7 @@ trafficControl = function() {
                 maxLaneDataNS = getLaneMapFromGlobalId(maxLaneIdNS)
                 maxLaneNS = intersection[maxLaneDataNS[0]].lanes[maxLaneDataNS[1]]
 
-                if ((now.getTime() - maxLaneNS.sensor_on_since.getTime()) / 1000 >= maxWaitSeconds) {
+                if ((now.getTime() - maxLaneNS.sensor_on_since.getTime()) / 1000 >= worldStateAndControls.maxWaitSeconds) {
 
                     switch(maxLaneNS.dir) {
                         case TURN.LEFT:
@@ -463,7 +466,7 @@ trafficControl = function() {
             if (maxSensorIdEW){
                 maxSensorDataEW = getLaneMapFromGlobalId(maxSensorIdEW)
                 maxSensorEW = intersection[maxSensorDataEW[0]].lanes[maxSensorDataEW[1]]
-                if ((now.getTime() - maxSensorEW.sensor_on_since.getTime()) / 1000 >= maxWaitSeconds) {
+                if ((now.getTime() - maxSensorEW.sensor_on_since.getTime()) / 1000 >= worldStateAndControls.maxWaitSeconds) {
                     
                     /**
                      * If it's a left turn, we want to do the straights first since we're interupting this side anyways
@@ -540,8 +543,15 @@ handleTrafficActionQueue = function() {
             console.error("Unrecognized control action:", action)
     }
     if (!done) return
+    now = new Date()
+    if (action != worldStateAndControls.lastTrafficControlAction){
+        worldStateAndControls.timeLatestActionTaken = now
 
+    }
     worldStateAndControls.lastTrafficControlAction = action
+    secondsSinceAction = (now.getTime() - worldStateAndControls.timeLatestActionTaken.getTime())/1000
+    if (secondsSinceAction < worldStateAndControls.minSecondsPerTrafficChange) return
+    console.log(secondsSinceAction, action)
     worldStateAndControls.trafficControlQueue.shift()
 }
 
