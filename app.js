@@ -7,7 +7,7 @@ const HEIGHT = 1000;
 // These getting used as code tokens means there will be no spelling errors. N S E W are probably fine tho.
 const TURN = {
     "LEFT": 0,
-    "STRAIGHT": 1,
+    "STRAIGHT": 1, //I'm realizing this being a "turn" is a bit silly. Meh, it gets the point across.
     "RIGHT": 2,
 }
 const COLOR = {
@@ -308,17 +308,27 @@ stopSides = function(cardinals) {
 }
 
 switchForward = function(isNS) {
+    let done = false
     if (isNS) {
-        let stopped = stopSides(["E", "W"])
-        if (stopped) {
+        let stopped = [stopSides(["E", "W"]), lightToRedSmooth("N", 0), lightToRedSmooth("S", 0)]
+        if (stopped.every(Boolean)) {
             lightToColor("N", 1, COLOR.GRE)
             lightToColor("N", 2, COLOR.GRE)
             lightToColor("S", 1, COLOR.GRE)
             lightToColor("S", 2, COLOR.GRE)
+            done = true
         }
-        return
+        return done
     }
-    stopSides(["N", "S"])
+    let stopped = [stopSides(["N", "S"]), lightToRedSmooth("E", 0), lightToRedSmooth("W", 0)]
+    if (stopped.every(Boolean)) {
+        lightToColor("E", 1, COLOR.GRE)
+        lightToColor("E", 2, COLOR.GRE)
+        lightToColor("W", 1, COLOR.GRE)
+        lightToColor("W", 2, COLOR.GRE)
+        done = true
+    }
+    return done
 
 }
 switchLeftFlash = function(isNS) {
@@ -364,10 +374,16 @@ trafficControl = function() {
             if (maxLaneIdNS){
                 maxLaneDataNS = getLaneMapFromGlobalId(maxLaneIdNS)
                 maxLaneNS = intersection[maxLaneDataNS[0]].lanes[maxLaneDataNS[1]]
-                if ((now.getTime() - maxLaneNS.sensor_on_since.getTime()) / 1000 >= maxWaitSeconds) {
-                    switchForward(true)
-                    switch(maxLaneNS.dir) {
 
+                if ((now.getTime() - maxLaneNS.sensor_on_since.getTime()) / 1000 >= maxWaitSeconds) {
+                    switch(maxLaneNS.dir) {
+                        case TURN.LEFT:
+                            // break;
+                        case TURN.STRAIGHT:
+                            switchForward(true)
+                            break;
+                        case TURN.RIGHT:
+                            break;
                     }
                 }
             }
