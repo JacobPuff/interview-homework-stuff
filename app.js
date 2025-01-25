@@ -16,21 +16,21 @@ const COLOR = {
     "GRE": 2,
     "FLA": 3 // flashing
 }
-const INT_TO_CARDINAL = ["N", "S", "E", "W"] // mostly for convenience, and so I don't need to convert NSEW to a type
+const INT_TO_CARDINAL = ["N", "E", "S", "W"] // mostly for convenience, and so I don't need to convert NSEW to a type
 const CARDINAL_TO_INT = {
     "N": 0,
-    "S": 1,
-    "E": 2,
+    "E": 1,
+    "S": 2,
     "W": 3,
 }
 const LANES_PER_SIDE = 5
 
 const ACTIONS = {
     "NS_LEFT": 1,
-    "NS_LEFT_FLASH":2,
+    "NS_STRAIGHT_LEFT_FLASH":2,
     "NS_STRAIGHT":3,
     "EW_LEFT":4,
-    "EW_LEFT_FLASH":5,
+    "EW_STRAIGHT_LEFT_FLASH":5,
     "EW_STRAIGHT":6,
 }
 
@@ -101,8 +101,8 @@ var intersection = {
 }
 
 const TRAFFIC_TYPE = {
-    "RANDOM": 0,
-    "HEAVY_EW": 1,
+    "HEAVY_EW": 0,
+    "RANDOM": 1,
     "EVEN": 2,
 }
 var worldStateAndControls = {
@@ -110,7 +110,7 @@ var worldStateAndControls = {
     useHistoricalData: false,
     trafficCondition: TRAFFIC_TYPE.HEAVY_EW,
     lastCarSpawn: new Date(), // may cause a short delay before cars spawn, but thats ok.
-    carSpawnRate: 20, // Used to adjust global spawn rate independent of traffic coniditions. I dunno how sensitive this will be yet. I'm thinking like, 1-10 scale.
+    carSpawnRate: 10, // Used to adjust global spawn rate independent of traffic coniditions. I dunno how sensitive this will be yet. I'm thinking like, 1-10 scale.
     lastCarSpawnLane: 0,
     lastTrafficControlAction: null,
     trafficControlQueue: [],
@@ -121,7 +121,17 @@ var worldStateAndControls = {
      * I am adding variables as knobs we can turn, but they may be changed or removed later.
      */
     maxWaitSeconds: 5, // Our cars are just numbers right now, so this seems reasonable.
-    minSecondsPerTrafficChange: 5,
+    minSecondsPerTrafficState: 5,
+
+    /**
+     * These are for the moveCars func
+     * Thes will be in milliseconds
+     */
+    carsAtInitialSpeed: 1,
+    carFromInitialThroughputDelay: 500, // This one will be used for the first cars on green. Yknow, because acceleration.
+    carFromYellowThroughputDelay: 300,
+    carFromFlashThroughputDelay: 300,
+    carFromGreenThroughputDelay: 100,
 }
 
 // This is a convenience that might get used a couple times, but I may want to update the intersection data structure to make this less annoying
@@ -325,32 +335,40 @@ stopSides = function(cardinals) {
     return done.every(v => v == true)
 }
 
-switchForward = function(isNS) {
+switchForward = function(isNS, flashLeft) {
     let done = false
     if (isNS) {
-        let stopped = [stopSides(["E", "W"]), lightToRedSmooth("N", 0), lightToRedSmooth("S", 0)]
+        let stopped = [stopSides(["E", "W"])]
         if (stopped.every(v => v == true)) {
             lightToColor("N", 1, COLOR.GRE)
             lightToColor("N", 2, COLOR.GRE)
             lightToColor("S", 1, COLOR.GRE)
             lightToColor("S", 2, COLOR.GRE)
+            if (flashLeft) {
+                lightToColor("N", 0, COLOR.FLA)
+                lightToColor("S", 0, COLOR.FLA)
+            }
             done = true
         }
         return done
     }
-    let stopped = [stopSides(["N", "S"]), lightToRedSmooth("E", 0), lightToRedSmooth("W", 0)]
+    let stopped = [stopSides(["N", "S"])]
     if (stopped.every(v => v == true)) {
         lightToColor("E", 1, COLOR.GRE)
         lightToColor("E", 2, COLOR.GRE)
         lightToColor("W", 1, COLOR.GRE)
         lightToColor("W", 2, COLOR.GRE)
+        if (flashLeft) {
+            lightToColor("E", 0, COLOR.FLA)
+            lightToColor("W", 0, COLOR.FLA)
+        }
         done = true
     }
     return done
 
 }
 
-switchLeftTurns = function (isNS, useFlash = false) {
+switchLeftTurns = function (isNS) {
     let done = false
     if (isNS) {
         let stopped = [
@@ -361,8 +379,8 @@ switchLeftTurns = function (isNS, useFlash = false) {
             lightToRedSmooth("S", 2),
         ]
         if (stopped.every(v => v == true)) {
-            lightToColor("N", 0, useFlash ? COLOR.FLA : COLOR.GRE)
-            lightToColor("S", 0, useFlash ? COLOR.FLA :COLOR.GRE)
+            lightToColor("N", 0, COLOR.GRE)
+            lightToColor("S", 0, COLOR.GRE)
             done = true
         }
         return done
@@ -375,8 +393,8 @@ switchLeftTurns = function (isNS, useFlash = false) {
         lightToRedSmooth("W", 2),
     ]
     if (stopped.every(v => v == true)) {
-        lightToColor("E", 0, useFlash ? COLOR.FLA :COLOR.GRE)
-        lightToColor("W", 0, useFlash ? COLOR.FLA :COLOR.GRE)
+        lightToColor("E", 0, COLOR.GRE)
+        lightToColor("W", 0, COLOR.GRE)
         done = true
     }
     return done
@@ -439,7 +457,7 @@ trafficControl = function() {
                                 addTrafficAction(ACTIONS.NS_STRAIGHT)
                                 addTrafficAction(ACTIONS.NS_LEFT)
                             } else {
-                                addTrafficAction(ACTIONS.NS_LEFT_FLASH)
+                                addTrafficAction(ACTIONS.NS_STRAIGHT_LEFT_FLASH)
                             }
                             break;
                         case TURN.STRAIGHT:
@@ -483,7 +501,7 @@ trafficControl = function() {
                                 addTrafficAction(ACTIONS.EW_STRAIGHT)
                                 addTrafficAction(ACTIONS.EW_LEFT)
                             } else {
-                                addTrafficAction(ACTIONS.EW_LEFT_FLASH)
+                                addTrafficAction(ACTIONS.EW_STRAIGHT_LEFT_FLASH)
                             }
                             break;
                         case TURN.STRAIGHT:
@@ -502,10 +520,12 @@ trafficControl = function() {
                         case TURN.RIGHT:
                             addTrafficAction(ACTIONS.EW_STRAIGHT)
                             break;
-                        default:
-                            addTrafficAction(ACTIONS.EW_STRAIGHT)
                     }
                 }
+            }
+            // We know this intersection has heavy EW traffic, so we need to make sure cars are typically able to move forward.
+            if (worldStateAndControls.trafficControlQueue.length == 0) {
+                addTrafficAction(ACTIONS.EW_STRAIGHT)
             }
         }
 
@@ -522,22 +542,22 @@ handleTrafficActionQueue = function() {
     done = false
     switch(action){
         case ACTIONS.NS_LEFT:
-            done = switchLeftTurns(true, false)
+            done = switchLeftTurns(true)
             break;
-        case ACTIONS.NS_LEFT_FLASH:
-            done = switchLeftTurns(true, true)
+        case ACTIONS.NS_STRAIGHT_LEFT_FLASH:
+            done = switchForward(true, true)
             break;
         case ACTIONS.NS_STRAIGHT:
-            done = switchForward(true)
+            done = switchForward(true, false)
             break;
         case ACTIONS.EW_LEFT:
-            done = switchLeftTurns(false, false)
+            done = switchLeftTurns(false)
             break;
-        case ACTIONS.EW_LEFT_FLASH:
-            done = switchLeftTurns(false, true)
+        case ACTIONS.EW_STRAIGHT_LEFT_FLASH:
+            done = switchForward(false, true)
             break;
         case ACTIONS.EW_STRAIGHT:
-            done = switchForward(false)
+            done = switchForward(false, false)
             break;
         default:
             console.error("Unrecognized control action:", action)
@@ -546,12 +566,12 @@ handleTrafficActionQueue = function() {
     now = new Date()
     if (action != worldStateAndControls.lastTrafficControlAction){
         worldStateAndControls.timeLatestActionTaken = now
+        console.log("ACTION", action)
 
     }
     worldStateAndControls.lastTrafficControlAction = action
     secondsSinceAction = (now.getTime() - worldStateAndControls.timeLatestActionTaken.getTime())/1000
-    if (secondsSinceAction < worldStateAndControls.minSecondsPerTrafficChange) return
-    console.log(secondsSinceAction, action)
+    if (secondsSinceAction < worldStateAndControls.minSecondsPerTrafficState) return
     worldStateAndControls.trafficControlQueue.shift()
 }
 
@@ -627,6 +647,14 @@ spawnCars = function() {
     }
 }
 
+//This would get replaced by a simulated Car, so I'm leaving this down here separate from other state.
+carThroughput = {
+    "N": {},
+    "S": {},
+    "E": {},
+    "W": {},
+}
+
 /**
  * This is where the car's logic will check light states before "moving".
  * If we get to visual car sprites, this will be moved into a Car class which handles it's own state and speed and such.
@@ -635,7 +663,76 @@ spawnCars = function() {
  * I will not be simulating crashes in here. If we get to the Car class, we can easily do that there.
  */
 moveCars = function() {
+    INT_TO_CARDINAL.forEach((card, cardIdx) => {
+        intersection[card].lanes.forEach((l, idx)=> {
+            if (l.car_count == 0) {
+                return
+            } 
+            color = null
+            lastLightStateChange = null
+            now = new Date()
+            switch(l.dir){
+                case TURN.LEFT:
+                    color = lights[card][0].state
+                    lastLightStateChange = lights[card][0].last_state_change
+                    break;
+                case TURN.STRAIGHT:
+                    color = lights[card][1].state
+                    lastLightStateChange = lights[card][1].last_state_change
+                    break;
+                case TURN.RIGHT:
+                    color = lights[card][2].state
+                    lastLightStateChange = lights[card][2].last_state_change
+                    break;
+            }
 
+            speed = null
+            switch(color){
+                case COLOR.RED:
+                    carThroughput[card][idx] = null
+                    break
+                case COLOR.YEL:
+                    speed = worldStateAndControls.carFromYellowThroughputDelay
+                    break
+                case COLOR.FLA:
+                    otherCard = INT_TO_CARDINAL[(cardIdx+2)%4]
+                    oppositeStraights = [
+                        intersection[otherCard].lanes[2].car_count,
+                        intersection[otherCard].lanes[3].car_count,
+                    ]
+                    if (!oppositeStraights.every(v=> v== 0)) return
+                    speed = worldStateAndControls.carFromFlashThroughputDelay
+                    break
+                case COLOR.GRE:
+                    speed = worldStateAndControls.carFromGreenThroughputDelay
+                    if (now.getTime() - lastLightStateChange.getTime() < worldStateAndControls.carFromInitialThroughputDelay * worldStateAndControls.carsAtInitialSpeed) {
+                        speed = worldStateAndControls.carFromInitialThroughputDelay
+                    }
+                    break;
+            }
+
+            carLastSentAt = carThroughput[card][idx]
+            if (carLastSentAt) {
+                if (now.getTime() - carLastSentAt.getTime() < speed) return
+                intersection[card].lanes[idx].car_count = intersection[card].lanes[idx].car_count - 1
+            }
+            carThroughput[card][idx] = now
+        })
+    })
+}
+
+
+trafficConditionInput 
+getInputs = function() {
+    trafficConditionInput = document.getElementById("trafficConditionInput").value
+    carSpawnRateInput = document.getElementById("carSpawnRateInput").value
+    maxWaitSecondsInput = document.getElementById("maxWaitSecondsInput").value
+    minSecondsPerTrafficStateInput = document.getElementById("minSecondsPerTrafficStateInput").value
+
+    worldStateAndControls.trafficCondition = parseInt(trafficConditionInput, 10)
+    worldStateAndControls.carSpawnRate = parseInt(carSpawnRateInput, 10)
+    worldStateAndControls.maxWaitSeconds = parseInt(maxWaitSecondsInput, 10)
+    worldStateAndControls.minSecondsPerTrafficState = parseInt(minSecondsPerTrafficStateInput, 10)
 }
 
 var FPS = 60; 
@@ -643,6 +740,7 @@ dostuff = function() {
     setTimeout(function(){
         window.requestAnimationFrame(dostuff);
         ctx.clearRect(0,0,WIDTH,HEIGHT);
+        getInputs()
 
         // Everything is drawn from bottom up.
         drawIntersection()

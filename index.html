@@ -8,6 +8,21 @@
             <canvas id="mainCanvas" width="1000" height="1000" style="position:center; border: solid black 1px; background: #888888;">
             </canvas>
         </div>
+        <div>
+            <br>
+            <span style="display: inline">Traffic condition: <select id="trafficConditionInput">
+                <option value="0" selected="selected">Heavy EW (most optimized)</option>
+                <option value="1">Random</option>
+                <option value="2">Even</option>
+            </select></span>
+            <br>
+            <span>Car spawn rate (recommended 1-20): <input id="carSpawnRateInput" type="number" min="0" value="10"/></span>
+            <br>
+            <span>Max lane wait seconds: <input id="maxWaitSecondsInput" type="number" min="0" value="5"/></span>
+            <br>
+            <span>Min seconds for traffic state: <input id="minSecondsPerTrafficStateInput" type="number" min="0" value="5"/></span>
+            <br>
+        </div>
         <script src="app.js"></script>
     </body>
 </html>
