@@ -331,10 +331,37 @@ switchForward = function(isNS) {
     return done
 
 }
-switchLeftFlash = function(isNS) {
 
-}
-switchLeftTurns = function (isNS) {
+switchLeftTurns = function (isNS, useFlash = false) {
+    let done = false
+    if (isNS) {
+        let stopped = [
+            stopSides(["E", "W"]),
+            lightToRedSmooth("N", 1),
+            lightToRedSmooth("N", 2),
+            lightToRedSmooth("S", 1),
+            lightToRedSmooth("S", 2),
+        ]
+        if (stopped.every(Boolean)) {
+            lightToColor("N", 0, useFlash ? COLOR.FLA : COLOR.GRE)
+            lightToColor("S", 0, useFlash ? COLOR.FLA :COLOR.GRE)
+            done = true
+        }
+        return done
+    }
+    let stopped = [
+        stopSides(["N", "S"]),
+        lightToRedSmooth("E", 1),
+        lightToRedSmooth("E", 2),
+        lightToRedSmooth("W", 1),
+        lightToRedSmooth("W", 2),
+    ]
+    if (stopped.every(Boolean)) {
+        lightToColor("E", 0, useFlash ? COLOR.FLA :COLOR.GRE)
+        lightToColor("W", 0, useFlash ? COLOR.FLA :COLOR.GRE)
+        done = true
+    }
+    return done
 
 }
 
