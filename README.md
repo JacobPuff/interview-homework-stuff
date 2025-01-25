@@ -6,7 +6,7 @@ Between the options of a spellchecker cli tool and a simulated intersection, I a
 
 ## The Plan™
 
-Because this project has quickly creeped up in scope in my head, I'm writing down a list of stuff I'm thinking about beforehand.
+Because this project has quickly creeped up in scope in my head, I'm writing down a list of stuff I'm thinking about beforehand. It gives me a list to work down.
 
 This will be a project using the HTML5 canvas for the UI, because it's a pretty easy API to use for displaying stuff in the browser, and super easy to run.
 
