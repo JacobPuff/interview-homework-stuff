@@ -61,4 +61,4 @@ I of course didn't get to everything in my list of wants, but that was expected.
 
 
 ## Running
-Just put it in a folder, and open the `index.html` file in a browser.
+Just put this all in a folder, and open the `index.html` file in a browser.
