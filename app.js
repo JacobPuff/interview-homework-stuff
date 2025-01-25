@@ -3,8 +3,6 @@ var ctx = c.getContext("2d");
 
 const WIDTH = 1000;
 const HEIGHT = 1000;
-const LANE_WIDTH = 80;
-
 
 // These getting used as code tokens means there will be no spelling errors. N S E W are probably fine tho.
 const TURN = {
@@ -19,6 +17,14 @@ const COLOR = {
     "FLA": 3 // flashing
 }
 const INT_TO_CARDINAL = ["N", "S", "E", "W"] // mostly for convenience, and so I don't need to convert NSEW to a type
+const CARDINAL_TO_INT = {
+    "N": 0,
+    "S": 1,
+    "E": 2,
+    "W": 3,
+}
+const LANES_PER_SIDE = 5
+
 
 var lights = {
     "N": [
@@ -27,19 +33,19 @@ var lights = {
         {dir: TURN.RIGHT, state: COLOR.RED, last_state_change: new Date()},
     ],
     "S": [
-        {dir: TURN.LEFT, state: COLOR.GRE, last_state_change: new Date()},
+        {dir: TURN.LEFT, state: COLOR.RED, last_state_change: new Date()},
+        {dir: TURN.STRAIGHT, state: COLOR.RED, last_state_change: new Date()},
+        {dir: TURN.RIGHT, state: COLOR.RED, last_state_change: new Date()},
+    ],
+    "E": [
+        {dir: TURN.LEFT, state: COLOR.RED, last_state_change: new Date()},
         {dir: TURN.STRAIGHT, state: COLOR.GRE, last_state_change: new Date()},
         {dir: TURN.RIGHT, state: COLOR.GRE, last_state_change: new Date()},
     ],
-    "E": [
-        {dir: TURN.LEFT, state: COLOR.YEL, last_state_change: new Date()},
-        {dir: TURN.STRAIGHT, state: COLOR.YEL, last_state_change: new Date()},
-        {dir: TURN.RIGHT, state: COLOR.YEL, last_state_change: new Date()},
-    ],
     "W": [
-        {dir: TURN.LEFT, state: COLOR.FLA, last_state_change: new Date()},
-        {dir: TURN.STRAIGHT, state: COLOR.FLA, last_state_change: new Date()},
-        {dir: TURN.RIGHT, state: COLOR.FLA, last_state_change: new Date()},
+        {dir: TURN.LEFT, state: COLOR.RED, last_state_change: new Date()},
+        {dir: TURN.STRAIGHT, state: COLOR.GRE, last_state_change: new Date()},
+        {dir: TURN.RIGHT, state: COLOR.GRE, last_state_change: new Date()},
     ],
 }
 
@@ -97,6 +103,15 @@ var worldStateAndControls = {
     lastCarSpawn: new Date(), // may cause a short delay before cars spawn, but thats ok.
     carSpawnRate: 20, // Used to adjust global spawn rate independent of traffic coniditions. I dunno how sensitive this will be yet. I'm thinking like, 1-10 scale.
     lastCarLane: 0,
+    lastTrafficControl: {type: 'forward', isNS: false}
+}
+
+// This is a convenience that might get used a couple times, but I may want to update the intersection data structure to make this less annoying
+// This works for our purposes in this project though.
+getLaneMapFromGlobalId = function(laneId) {
+    dirLane = laneId % LANES_PER_SIDE
+    cardinal = INT_TO_CARDINAL[(laneId - dirLane) / LANES_PER_SIDE]
+    return [cardinal, dirLane] // I wanted to return an object ref here. I cannot.
 }
 
 drawIntersectionSide = function(cardinal_dir) {
@@ -259,15 +274,114 @@ drawLights = function () {
     drawLightsSide("W")
 }
 
+
+lightToColor = function(card, lightId, color) {
+    lights[card][lightId].state = color
+    lights[card][lightId].last_state_change = new Date()
+}
+
+yellowDurationSeconds = 2
+lightToRedSmooth = function(card, lightId) {
+    light = lights[card][lightId]
+    now = new Date()
+    if (light.state != COLOR.YEL && light.state != COLOR.RED){
+        lightToColor(card, lightId, COLOR.YEL)
+    }
+    if (light.state == COLOR.YEL && (((now.getTime() - light.last_state_change.getTime()) /1000)) > yellowDurationSeconds) {
+        lightToColor(card, lightId, COLOR.RED)
+    }
+    return light.state == COLOR.RED
+}
+
+
+
+
+stopSides = function(cardinals) {
+    if (!cardinals || !cardinals.length) return true
+    let done = false
+    for (const card of cardinals) {
+        lightToRedSmooth(card, 0)
+        lightToRedSmooth(card, 1)
+        done = lightToRedSmooth(card, 2)
+    }
+    return done
+}
+
+switchForward = function(isNS) {
+    if (isNS) {
+        let stopped = stopSides(["E", "W"])
+        if (stopped) {
+            lightToColor("N", 1, COLOR.GRE)
+            lightToColor("N", 2, COLOR.GRE)
+            lightToColor("S", 1, COLOR.GRE)
+            lightToColor("S", 2, COLOR.GRE)
+        }
+        return
+    }
+    stopSides(["N", "S"])
+
+}
+switchLeftFlash = function(isNS) {
+
+}
+switchLeftTurns = function (isNS) {
+
+}
+
+getMaxWaitLaneIdForSides = function(cardinals) {
+    now = new Date()
+    maxLane = null // none waiting
+    cardinals.forEach(card => {
+        maxLane = intersection[card].lanes.reduce((prev, curr, idx) => {
+            if (!curr.sensor_on) {
+                return prev
+            }
+            currId = CARDINAL_TO_INT[card]*LANES_PER_SIDE + idx
+            if (prev == null) return currId
+            prevData = getLaneMapFromGlobalId(prev)
+            prevSens = intersection[prevData[0]].lanes[prevData[1]]
+            return prev.sensor_on_since < curr.sensor_on_since ? prev : currId
+        }, maxLane)
+    })
+    return maxLane
+}
+
 trafficControl = function() {
     /**
      * This is our main traffic controller func!
      * For now, both the time based and dynamic versions will live here, until I figure out where I want to separate them.
      */
+    /**
+     * I am adding variables as knobs we can turn, but they may be changed or removed later.
+     */
+    maxWaitSeconds = 5 // Our cars are just numbers right now, so this seems reasonable.
+    minSecondsPerTrafficChange = 3
     if (worldStateAndControls.useDynamic) {
 
+        if (worldStateAndControls.trafficCondition == TRAFFIC_TYPE.HEAVY_EW) {
+            // Handle sensor wait times
+            maxLaneIdNS = getMaxWaitLaneIdForSides(["N", "S"])
+            if (maxLaneIdNS){
+                maxLaneDataNS = getLaneMapFromGlobalId(maxLaneIdNS)
+                maxLaneNS = intersection[maxLaneDataNS[0]].lanes[maxLaneDataNS[1]]
+                if ((now.getTime() - maxLaneNS.sensor_on_since.getTime()) / 1000 >= maxWaitSeconds) {
+                    switchForward(true)
+                    switch(maxLaneNS.dir) {
+
+                    }
+                }
+            }
+            maxSensorIdEW = getMaxWaitLaneIdForSides(["E", "W"])
+            if (maxSensorIdEW){
+                maxSensorDataEW = getLaneMapFromGlobalId(maxSensorIdEW)
+                maxSensorEW = intersection[maxSensorDataEW[0]].lanes[maxSensorDataEW[1]]
+                if ((now.getTime() - maxSensorEW.sensor_on_since.getTime()) / 1000 >= maxWaitSeconds) {
+                }
+            }
+        }
+
     }
-    // time based, will do later.
+    // time based, probably will do later. If not, you know what this might look like.
     if (!worldStateAndControls.useDynamic) {
         
     }
@@ -296,10 +410,9 @@ handleSensors = function() {
     })
 }
 
-
-addCarToLane= function (lane){
-    dirLane = lane % 5
-    cardinal = INT_TO_CARDINAL[(lane - dirLane) / 5]
+addCarToLane= function (laneId){
+    dirLane = laneId % LANES_PER_SIDE
+    cardinal = INT_TO_CARDINAL[(laneId - dirLane) / LANES_PER_SIDE]
     intersection[cardinal].lanes[dirLane].car_count += 1
 }
 
@@ -338,10 +451,10 @@ spawnCars = function() {
     if (TRAFFIC_TYPE.HEAVY_EW == worldStateAndControls.trafficCondition) {
         useEW = (Math.floor(Math.random() * 10) + 1) <= 7 // (N * 10)% of traffic is on EW direcitons.
         side = Math.round(Math.random())
-        lane = Math.floor(Math.random() * 5)
+        lane = Math.floor(Math.random() * LANES_PER_SIDE)
 
         if (useEW) lane += 10
-        if (side) lane += 5
+        if (side) lane += LANES_PER_SIDE
         addCarToLane(lane)
         worldStateAndControls.lastCarLane = lane
     }
@@ -372,10 +485,6 @@ dostuff = function() {
         spawnCars()
         moveCars()
         trafficControl()
-        if (new Date() - lights["N"][0].last_state_change > 1000) {
-            lights["N"][0].state = (lights["N"][0].state + 1) % 4
-            lights["N"][0].last_state_change = new Date()
-        } 
     }, 1000/FPS);
 };
 
