@@ -12,12 +12,12 @@ This will be a project using the HTML5 canvas for the UI, because it's a pretty 
 
 Features I'm shooting for:
 - Two different types of control systems:
+    - Dynamic (meaning there are sensors in the ground) [CHECK]
     - Time based
-    - Dynamic (meaning there are sensors in the ground)
 - Two different traffic patterns:
-    - Random
-    - E/W heavy (like side streets turning on to a highway)
-    - Maybe a super even round robin? Not the most interesting, so maybe not.
+    - Random [CHECK]
+    - E/W heavy (like side streets turning on to a highway) [CHECK]
+    - Maybe a super even round robin? Not the most interesting, so maybe not. [CHECK]
 - Manual controls for adding cars to lanes
 - Fun UI elements instead of probably a text based skeleton. I want cars to be shown turning! Fancy looking traffic lights! Maybe even sprites!
 - A "historical" toggle for each of the control systems to _supplement_ the control system with historical traffic data, allowing for changes on the fly.
@@ -35,3 +35,30 @@ Assumptions and asterisks:
     - Traffic cannot back up to this intersection
     - The sensors are perfect, and will never give false positive/negative results
     - If I get to the historical data toggle, the sensors can totally sense a car whipping by at 55mph to record that.
+
+
+## The Results!
+
+Alright, so it's been a few hours! Due to time constraints, I'm not gonna do much more.
+
+Heres what's done:
+
+- We have a UI for the lanes, the lights, the sensors, and a count of cars on each side.
+- All the different traffic patterns, since they were pretty easy
+- Several knobs to turn
+- HTML inputs to turn some of those knobs
+- Modular funcs to handle traffic light changes
+- A traffic control queue, so we can queue up multiple traffic changes at once
+- An approximation of accelaration and breaking for our cars on different light states
+
+I of course didn't get to everything in my list of wants, but that was expected. Here is what I'd like to do with more time:
+- I changed some of the traffic control actions, and that messed with my Heavy EW optimizations a bit. I'd like to redo and clean it up a bit. There are more optimizations to be made
+- Handling the random traffic pattern as a separate flow would be neat, but it's unrealistic for IRL intersections.
+- The code has a lot of boilerplate since I wanted separate funcs for flexibility, but there are some spots that could be combined/simplified along with other organization/cleanup work.
+- Manual setup for testing traffic scenarios! A pause button, ability to set the light state, adding cars to lanes, etc.
+- Right turns going when oncoming traffic is slow. I think it's fine as is for demonstration tho, and would be essentially the same as the flashing lights.
+- Simulated cars.
+
+
+## Running
+Just put it in a folder, and open the `index.html` file in a browser.
