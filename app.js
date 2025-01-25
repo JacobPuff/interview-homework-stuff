@@ -111,7 +111,7 @@ var worldStateAndControls = {
     trafficCondition: TRAFFIC_TYPE.HEAVY_EW,
     lastCarSpawn: new Date(), // may cause a short delay before cars spawn, but thats ok.
     carSpawnRate: 20, // Used to adjust global spawn rate independent of traffic coniditions. I dunno how sensitive this will be yet. I'm thinking like, 1-10 scale.
-    lastCarLane: 0,
+    lastCarSpawnLane: 0,
     lastTrafficControlAction: null,
     trafficControlQueue: [],
 }
@@ -596,13 +596,13 @@ spawnCars = function() {
         //4 dirs * 5 lanes = 20 total lanes
         globalLane = Math.floor(Math.random() * 20)
         addCarToLane(globalLane)
-        worldStateAndControls.lastCarLane = globalLane
+        worldStateAndControls.lastCarSpawnLane = globalLane
     }
 
     if (TRAFFIC_TYPE.EVEN == worldStateAndControls.trafficCondition) {
-        next = (worldStateAndControls.lastCarLane + 1) % 20
-        addCarToLane(worldStateAndControls.lastCarLane)
-        worldStateAndControls.lastCarLane = next
+        next = (worldStateAndControls.lastCarSpawnLane + 1) % 20
+        addCarToLane(worldStateAndControls.lastCarSpawnLane)
+        worldStateAndControls.lastCarSpawnLane = next
     }
 
     if (TRAFFIC_TYPE.HEAVY_EW == worldStateAndControls.trafficCondition) {
@@ -613,7 +613,7 @@ spawnCars = function() {
         if (useEW) lane += 10
         if (side) lane += LANES_PER_SIDE
         addCarToLane(lane)
-        worldStateAndControls.lastCarLane = lane
+        worldStateAndControls.lastCarSpawnLane = lane
     }
 }
 
