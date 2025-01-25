@@ -91,7 +91,7 @@ const TRAFFIC_TYPE = {
     "EVEN": 2,
 }
 var worldStateAndControls = {
-    useDynamic: false, // false = time based
+    useDynamic: true, // false = time based
     useHistoricalData: false,
     trafficCondition: TRAFFIC_TYPE.HEAVY_EW,
     lastCarSpawn: new Date(), // may cause a short delay before cars spawn, but thats ok.
@@ -146,6 +146,20 @@ drawIntersectionSide = function(cardinal_dir) {
         ctx.rotate(rotation * Math.PI /180)
         ctx.fillText(text, x, y)
         ctx.restore()
+
+        // fill sensor ellipse
+        ctx.save()
+        ctx.translate(WIDTH/2, HEIGHT/2)
+        ctx.rotate(rotation * Math.PI /180)
+
+        ctx.strokeStyle = l.sensor_on ? "cyan" : "#333"
+        ctx.lineWidth = 2
+        ctx.beginPath();
+        ctx.scale(1, 1.5);
+        ctx.arc(x+10, y/1.5-7, 20, 0, 2*Math.PI);
+        ctx.stroke();
+        ctx.restore()
+
         
         // fill car count
         ctx.save()
@@ -250,7 +264,38 @@ trafficControl = function() {
      * This is our main traffic controller func!
      * For now, both the time based and dynamic versions will live here, until I figure out where I want to separate them.
      */
+    if (worldStateAndControls.useDynamic) {
+
+    }
+    // time based, will do later.
+    if (!worldStateAndControls.useDynamic) {
+        
+    }
 }
+
+
+/**
+ * Ideally there would be a delay inbetween car added to lane and sensor on, but until we have moving vehicles on screen this is fine.
+ **/
+handleSensors = function() {
+    if (!worldStateAndControls.useDynamic) {
+        return
+    }
+    Object.keys(intersection).forEach(cardinal => {
+        intersection[cardinal].lanes.forEach(l => {
+            if (l.car_count > 0 && !l.sensor_on) {
+                l.sensor_on = true
+                l.sensor_on_since = new Date()
+
+            }
+            if (l.car_count == 0 && l.sensor_on) {
+                l.sensor_on = false
+                l.sensor_on_since = null
+            } 
+        })
+    })
+}
+
 
 addCarToLane= function (lane){
     dirLane = lane % 5
@@ -302,6 +347,17 @@ spawnCars = function() {
     }
 }
 
+/**
+ * This is where the car's logic will check light states before "moving".
+ * If we get to visual car sprites, this will be moved into a Car class which handles it's own state and speed and such.
+ * 
+ * For now though, this will just use the intersection states.
+ * I will not be simulating crashes in here. If we get to the Car class, we can easily do that there.
+ */
+moveCars = function() {
+
+}
+
 var FPS = 60; 
 dostuff = function() {
     setTimeout(function(){
@@ -312,7 +368,9 @@ dostuff = function() {
         drawIntersection()
         drawCars()
         drawLights()
+        handleSensors()
         spawnCars()
+        moveCars()
         trafficControl()
         if (new Date() - lights["N"][0].last_state_change > 1000) {
             lights["N"][0].state = (lights["N"][0].state + 1) % 4
