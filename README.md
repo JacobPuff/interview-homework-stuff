@@ -31,6 +31,7 @@ Assumptions and asterisks:
 - Normally a traffic study would be used to determine how an intersection should work. I'm gonna just be fiddling with values until I like it. Like how long the yellow light is on for is going to be different depending on the speed limit of the road.
 - This is a simulation! The real world is awfully wiggly, and we're going to assume a variety of things that are less consistent IRL:
     - People don't stop in the intersection blocking traffic.
+    - Similarly, we won't be simulating crashes. At least not until I get to the visual cars moving around where that will be easier. It shouldn't happen anyways.
     - Traffic cannot back up to this intersection
     - The sensors are perfect, and will never give false positive/negative results
     - If I get to the historical data toggle, the sensors can totally sense a car whipping by at 55mph to record that.
