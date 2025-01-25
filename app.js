@@ -5,6 +5,7 @@ const WIDTH = 1000;
 const HEIGHT = 1000;
 const LANE_WIDTH = 80;
 
+
 // These getting used as code tokens means there will be no spelling errors. N S E W are probably fine tho.
 const TURN = {
     "LEFT": 0,
@@ -17,6 +18,7 @@ const COLOR = {
     "GRE": 2,
     "FLA": 3 // flashing
 }
+const INT_TO_CARDINAL = ["N", "S", "E", "W"] // mostly for convenience, and so I don't need to convert NSEW to a type
 
 var lights = {
     "N": [
@@ -44,41 +46,41 @@ var lights = {
 var intersection = {
     "N": {
         lanes: [
-            {dir: TURN.LEFT, sensor_on: false, car_count: 0},
-            {dir: TURN.LEFT, sensor_on: false, car_count: 0},
-            {dir: TURN.STRAIGHT, sensor_on: false, car_count: 0},
-            {dir: TURN.STRAIGHT, sensor_on: false, car_count: 0},
-            {dir: TURN.RIGHT, sensor_on: false, car_count: 0},
+            {dir: TURN.LEFT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.LEFT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.STRAIGHT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.STRAIGHT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.RIGHT, sensor_on: false, sensor_on_since: null, car_count: 0},
         ]
     },
     "S": {
         lanes: [
-            {dir: TURN.LEFT, sensor_on: false, car_count: 0},
-            {dir: TURN.LEFT, sensor_on: false, car_count: 0},
-            {dir: TURN.STRAIGHT, sensor_on: false, car_count: 0},
-            {dir: TURN.STRAIGHT, sensor_on: false, car_count: 0},
-            {dir: TURN.RIGHT, sensor_on: false, car_count: 0},
+            {dir: TURN.LEFT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.LEFT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.STRAIGHT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.STRAIGHT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.RIGHT, sensor_on: false, sensor_on_since: null, car_count: 0},
         ]
         
 
     },
     "E": {
         lanes: [
-            {dir: TURN.LEFT, sensor_on: false, car_count: 0},
-            {dir: TURN.LEFT, sensor_on: false, car_count: 0},
-            {dir: TURN.STRAIGHT, sensor_on: false, car_count: 0},
-            {dir: TURN.STRAIGHT, sensor_on: false, car_count: 0},
-            {dir: TURN.RIGHT, sensor_on: false, car_count: 0},
+            {dir: TURN.LEFT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.LEFT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.STRAIGHT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.STRAIGHT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.RIGHT, sensor_on: false, sensor_on_since: null, car_count: 0},
         ]
         
     },
     "W": {
         lanes: [
-            {dir: TURN.LEFT, sensor_on: false, car_count: 0},
-            {dir: TURN.LEFT, sensor_on: false, car_count: 0},
-            {dir: TURN.STRAIGHT, sensor_on: false, car_count: 0},
-            {dir: TURN.STRAIGHT, sensor_on: false, car_count: 0},
-            {dir: TURN.RIGHT, sensor_on: false, car_count: 0},
+            {dir: TURN.LEFT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.LEFT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.STRAIGHT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.STRAIGHT, sensor_on: false, sensor_on_since: null, car_count: 0},
+            {dir: TURN.RIGHT, sensor_on: false, sensor_on_since: null, car_count: 0},
         ]
     },
 }
@@ -91,9 +93,10 @@ const TRAFFIC_TYPE = {
 var worldStateAndControls = {
     useDynamic: false, // false = time based
     useHistoricalData: false,
-    trafficCondition: TRAFFIC_TYPE.RANDOM,
+    trafficCondition: TRAFFIC_TYPE.HEAVY_EW,
     lastCarSpawn: new Date(), // may cause a short delay before cars spawn, but thats ok.
-    carSpawnRate: 5 // Used to adjust global spawn rate independent of traffic coniditions. I dunno how sensitive this will be yet, but 5 it shall be. I'm thinking like, 1-10 scale.
+    carSpawnRate: 20, // Used to adjust global spawn rate independent of traffic coniditions. I dunno how sensitive this will be yet. I'm thinking like, 1-10 scale.
+    lastCarLane: 0,
 }
 
 drawIntersectionSide = function(cardinal_dir) {
@@ -208,7 +211,11 @@ drawLightsSide = function(cardinal_dir) {
                 style = "#00FF00"
                 break;
             case COLOR.FLA:
-                style = "orange"
+                if ((new Date().getMilliseconds()) < 500) {
+                    style = "orange"
+                } else {
+                    style = "black";
+                }
                 break;
         }
         ctx.fillStyle = style
@@ -245,10 +252,54 @@ trafficControl = function() {
      */
 }
 
+addCarToLane= function (lane){
+    dirLane = lane % 5
+    cardinal = INT_TO_CARDINAL[(lane - dirLane) / 5]
+    intersection[cardinal].lanes[dirLane].car_count += 1
+}
+
 spawnCars = function() {
     /**
      * Yeh
      */
+    
+    // Are we even spawning cars?
+    if (worldStateAndControls.carSpawnRate <= 0) {
+        return
+    }
+
+    // Can we spawn a car yet?
+    now = new Date()
+    threshold = 10000/(worldStateAndControls.carSpawnRate)
+    if (now - worldStateAndControls.lastCarSpawn < threshold) {
+        return
+    }
+    worldStateAndControls.lastCarSpawn = now
+
+
+    if (TRAFFIC_TYPE.RANDOM == worldStateAndControls.trafficCondition) {
+        //4 dirs * 5 lanes = 20 total lanes
+        globalLane = Math.floor(Math.random() * 20)
+        addCarToLane(globalLane)
+        worldStateAndControls.lastCarLane = globalLane
+    }
+
+    if (TRAFFIC_TYPE.EVEN == worldStateAndControls.trafficCondition) {
+        next = (worldStateAndControls.lastCarLane + 1) % 20
+        addCarToLane(worldStateAndControls.lastCarLane)
+        worldStateAndControls.lastCarLane = next
+    }
+
+    if (TRAFFIC_TYPE.HEAVY_EW == worldStateAndControls.trafficCondition) {
+        useEW = (Math.floor(Math.random() * 10) + 1) <= 7 // (N * 10)% of traffic is on EW direcitons.
+        side = Math.round(Math.random())
+        lane = Math.floor(Math.random() * 5)
+
+        if (useEW) lane += 10
+        if (side) lane += 5
+        addCarToLane(lane)
+        worldStateAndControls.lastCarLane = lane
+    }
 }
 
 var FPS = 60; 
