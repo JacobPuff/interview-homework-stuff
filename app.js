@@ -25,6 +25,15 @@ const CARDINAL_TO_INT = {
 }
 const LANES_PER_SIDE = 5
 
+const ACTIONS = {
+    "NS_LEFT": 1,
+    "NS_LEFT_FLASH":2,
+    "NS_STRAIGHT":3,
+    "EW_LEFT":4,
+    "EW_LEFT_FLASH":5,
+    "EW_STRAIGHT":6,
+}
+
 
 var lights = {
     "N": [
@@ -103,7 +112,8 @@ var worldStateAndControls = {
     lastCarSpawn: new Date(), // may cause a short delay before cars spawn, but thats ok.
     carSpawnRate: 20, // Used to adjust global spawn rate independent of traffic coniditions. I dunno how sensitive this will be yet. I'm thinking like, 1-10 scale.
     lastCarLane: 0,
-    lastTrafficControl: {type: 'forward', isNS: false}
+    lastTrafficControlAction: null,
+    trafficControlQueue: [],
 }
 
 // This is a convenience that might get used a couple times, but I may want to update the intersection data structure to make this less annoying
@@ -383,6 +393,12 @@ getMaxWaitLaneIdForSides = function(cardinals) {
     return maxLane
 }
 
+addTrafficAction = function(action) {
+    if (worldStateAndControls.trafficControlQueue.findIndex(v=> v == action) == -1) {
+        worldStateAndControls.trafficControlQueue.push(action)
+    }
+}
+
 trafficControl = function() {
     /**
      * This is our main traffic controller func!
@@ -403,13 +419,42 @@ trafficControl = function() {
                 maxLaneNS = intersection[maxLaneDataNS[0]].lanes[maxLaneDataNS[1]]
 
                 if ((now.getTime() - maxLaneNS.sensor_on_since.getTime()) / 1000 >= maxWaitSeconds) {
+
                     switch(maxLaneNS.dir) {
                         case TURN.LEFT:
-                            // break;
+                            /**
+                             * If it's a left turn, we want to do the straights if there are any since we're interupting this side anyways
+                             * Otherwise a flashing light is fine.
+                             */
+                            straights = [
+                                intersection["N"].lanes[2].sensor_on,
+                                intersection["N"].lanes[3].sensor_on,
+                                intersection["S"].lanes[2].sensor_on,
+                                intersection["S"].lanes[3].sensor_on,
+                            ]
+                            if (straights.some(v => v == true)) {
+                                addTrafficAction(ACTIONS.NS_STRAIGHT)
+                                addTrafficAction(ACTIONS.NS_LEFT)
+                            } else {
+                                addTrafficAction(ACTIONS.NS_LEFT_FLASH)
+                            }
+                            break;
                         case TURN.STRAIGHT:
-                            switchForward(true)
+                            addTrafficAction(ACTIONS.NS_STRAIGHT)
+
+                            lefts = [
+                                intersection["N"].lanes[0].sensor_on,
+                                intersection["N"].lanes[1].sensor_on,
+                                intersection["S"].lanes[0].sensor_on,
+                                intersection["S"].lanes[1].sensor_on,
+                            ]
+                            if (lefts.some(v => v == true)) {
+                                // IMPROVEMENT: We could make lefts flash if there have not been many straight cars
+                                addTrafficAction(ACTIONS.NS_LEFT)
+                            }
                             break;
                         case TURN.RIGHT:
+                            addTrafficAction(ACTIONS.NS_STRAIGHT)
                             break;
                     }
                 }
@@ -419,6 +464,44 @@ trafficControl = function() {
                 maxSensorDataEW = getLaneMapFromGlobalId(maxSensorIdEW)
                 maxSensorEW = intersection[maxSensorDataEW[0]].lanes[maxSensorDataEW[1]]
                 if ((now.getTime() - maxSensorEW.sensor_on_since.getTime()) / 1000 >= maxWaitSeconds) {
+                    
+                    /**
+                     * If it's a left turn, we want to do the straights first since we're interupting this side anyways
+                     */
+                    switch(maxLaneNS.dir) {
+                        case TURN.LEFT:
+                            straights = [
+                                intersection["E"].lanes[2].sensor_on,
+                                intersection["E"].lanes[3].sensor_on,
+                                intersection["W"].lanes[2].sensor_on,
+                                intersection["W"].lanes[3].sensor_on,
+                            ]
+                            if (straights.some(v => v == true)) {
+                                addTrafficAction(ACTIONS.EW_STRAIGHT)
+                                addTrafficAction(ACTIONS.EW_LEFT)
+                            } else {
+                                addTrafficAction(ACTIONS.EW_LEFT_FLASH)
+                            }
+                            break;
+                        case TURN.STRAIGHT:
+                            addTrafficAction(ACTIONS.EW_STRAIGHT)
+
+                            lefts = [
+                                intersection["E"].lanes[0].sensor_on,
+                                intersection["E"].lanes[1].sensor_on,
+                                intersection["W"].lanes[0].sensor_on,
+                                intersection["W"].lanes[1].sensor_on,
+                            ]
+                            if (lefts.some(v => v == true)) {
+                                addTrafficAction(ACTIONS.EW_LEFT)
+                            }
+                            break;
+                        case TURN.RIGHT:
+                            addTrafficAction(ACTIONS.EW_STRAIGHT)
+                            break;
+                        default:
+                            addTrafficAction(ACTIONS.EW_STRAIGHT)
+                    }
                 }
             }
         }
@@ -430,6 +513,37 @@ trafficControl = function() {
     }
 }
 
+handleTrafficActionQueue = function() {
+    if (!worldStateAndControls.trafficControlQueue.length) return
+    action = worldStateAndControls.trafficControlQueue[0]
+    done = false
+    switch(action){
+        case ACTIONS.NS_LEFT:
+            done = switchLeftTurns(true, false)
+            break;
+        case ACTIONS.NS_LEFT_FLASH:
+            done = switchLeftTurns(true, true)
+            break;
+        case ACTIONS.NS_STRAIGHT:
+            done = switchForward(true)
+            break;
+        case ACTIONS.EW_LEFT:
+            done = switchLeftTurns(false, false)
+            break;
+        case ACTIONS.EW_LEFT_FLASH:
+            done = switchLeftTurns(false, true)
+            break;
+        case ACTIONS.EW_STRAIGHT:
+            done = switchForward(false)
+            break;
+        default:
+            console.error("Unrecognized control action:", action)
+    }
+    if (!done) return
+
+    worldStateAndControls.lastTrafficControlAction = action
+    worldStateAndControls.trafficControlQueue.shift()
+}
 
 /**
  * Ideally there would be a delay inbetween car added to lane and sensor on, but until we have moving vehicles on screen this is fine.
@@ -528,6 +642,7 @@ dostuff = function() {
         spawnCars()
         moveCars()
         trafficControl()
+        handleTrafficActionQueue()
     }, 1000/FPS);
 };
 
